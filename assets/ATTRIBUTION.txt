@@ -1,0 +1,6 @@
+Planetary texture maps by Solar System Scope
+Source: https://www.solarsystemscope.com/textures/
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+License URL: https://creativecommons.org/licenses/by/4.0/
+
+The texture pack states that its maps are based on NASA imagery and elevation data. The pack also notes that some unmapped regions are filled with representative terrain and colors may be adjusted for clarity.

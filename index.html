@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080d14">
+  <title>Orbit Atlas | Interactive Universe Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script type="importmap">
+    {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
+  </script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #eef2f1;
+      --muted: #89969b;
+      --quiet: #5d6a71;
+      --line: rgba(184, 208, 212, .13);
+      --panel: rgba(10, 17, 25, .88);
+      --panel-strong: #0b121b;
+      --mint: #a9d8c5;
+      --amber: #efc883;
+      --blue: #9fc9e8;
+      --mono: "DM Mono", monospace;
+      --sans: "Manrope", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body { background: #080d14; color: var(--ink); font-family: var(--sans); }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    .app { position: relative; width: 100%; height: 100%; isolation: isolate; }
+    #universe { position: absolute; inset: 0; z-index: -2; }
+    #universe canvas { display: block; width: 100%; height: 100%; }
+    .space-wash { position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(ellipse at 50% 46%, transparent 12%, rgba(5, 9, 14, .08) 56%, rgba(5, 9, 14, .58) 100%); }
+    .topbar { height: 76px; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; border-bottom: 1px solid var(--line); background: rgba(7, 12, 19, .72); backdrop-filter: blur(18px); }
+    .brand { display: flex; gap: 12px; align-items: center; min-width: 225px; }
+    .brand-mark { width: 30px; height: 30px; border: 1px solid rgba(169, 216, 197, .55); border-radius: 50%; display: grid; place-items: center; color: var(--mint); font-size: 14px; position: relative; }
+    .brand-mark::after { content: ""; position: absolute; width: 5px; height: 5px; top: 2px; right: 1px; background: var(--amber); border-radius: 50%; box-shadow: 0 0 12px var(--amber); }
+    .brand-name { font-size: 12px; letter-spacing: .13em; font-weight: 700; }
+    .brand-sub { color: var(--quiet); font: 9px var(--mono); letter-spacing: .13em; margin-top: 3px; }
+    .top-center { color: #adbbc0; font: 10px var(--mono); letter-spacing: .15em; text-transform: uppercase; }
+    .top-right { display: flex; align-items: center; gap: 18px; }
+    .live { display: flex; align-items: center; gap: 7px; color: var(--muted); font: 9px var(--mono); letter-spacing: .1em; }
+    .live-dot { height: 6px; width: 6px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 10px rgba(169,216,197,.8); }
+    .icon-button { width: 34px; height: 34px; border: 1px solid var(--line); background: rgba(255,255,255,.025); border-radius: 50%; cursor: pointer; display: grid; place-items: center; color: #b7c2c5; transition: border-color .2s, color .2s, background .2s; }
+    .icon-button:hover, .icon-button[aria-pressed="true"] { color: var(--mint); border-color: rgba(169,216,197,.48); background: rgba(169,216,197,.08); }
+    .icon-button svg { width: 14px; height: 14px; }
+    .workspace { position: absolute; inset: 76px 0 0; display: grid; grid-template-columns: 254px minmax(0, 1fr) 310px; gap: 0; pointer-events: none; }
+    .rail { pointer-events: auto; min-height: 0; background: linear-gradient(90deg, rgba(8,14,21,.93), rgba(8,14,21,.78)); backdrop-filter: blur(14px); border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+    .rail.right { border-right: 0; border-left: 1px solid var(--line); background: linear-gradient(270deg, rgba(8,14,21,.94), rgba(8,14,21,.8)); }
+    .rail-head { padding: 22px 18px 14px; }
+    .eyebrow { color: var(--quiet); font: 9px var(--mono); letter-spacing: .17em; text-transform: uppercase; }
+    .search-wrap { margin-top: 15px; position: relative; }
+    .search-icon { position: absolute; left: 11px; top: 10px; width: 14px; height: 14px; color: #7f8e93; pointer-events: none; }
+    .search { width: 100%; height: 36px; padding: 0 10px 0 34px; color: var(--ink); border: 1px solid rgba(184,208,212,.16); background: rgba(255,255,255,.035); outline: none; border-radius: 4px; font-size: 11px; }
+    .search::placeholder { color: #69777d; }
+    .search:focus { border-color: rgba(169,216,197,.6); box-shadow: 0 0 0 2px rgba(169,216,197,.08); }
+    .group-label { padding: 12px 18px 7px; color: #68767c; font: 9px var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+    .object-list { overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(169,216,197,.24) transparent; padding: 0 9px 14px; }
+    .object-row { border: 0; background: transparent; text-align: left; width: 100%; height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 9px; border-radius: 4px; cursor: pointer; color: #aab5b7; transition: background .18s, color .18s; }
+    .object-row:hover { background: rgba(255,255,255,.045); color: var(--ink); }
+    .object-row.active { background: rgba(169,216,197,.09); color: var(--mint); }
+    .object-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; box-shadow: inset -2px -1px 2px rgba(0,0,0,.4); }
+    .object-label { font-size: 11px; flex: 1; }
+    .object-kind { color: #627077; font: 8px var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+    .empty-search { padding: 20px 10px; color: var(--muted); font-size: 11px; }
+    .stage { position: relative; pointer-events: none; min-width: 0; }
+    .stage > * { pointer-events: auto; }
+    .scene-title { position: absolute; top: 25px; left: 28px; pointer-events: none !important; }
+    .scene-title h1 { font-size: 17px; font-weight: 500; letter-spacing: .01em; margin: 7px 0 0; }
+    .scene-title p { margin: 5px 0 0; color: #8b989d; font-size: 10px; }
+    .mode-switch { position: absolute; right: 24px; top: 22px; display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); background: rgba(7,12,19,.68); backdrop-filter: blur(12px); border-radius: 5px; }
+    .mode-button { border: 0; background: transparent; color: #849196; border-radius: 3px; padding: 7px 10px; font: 9px var(--mono); letter-spacing: .06em; cursor: pointer; transition: .2s; }
+    .mode-button:hover { color: var(--ink); }
+    .mode-button.active { color: #d5e4dd; background: rgba(169,216,197,.13); }
+    .scene-tip { position: absolute; top: 91px; left: 50%; transform: translateX(-50%); white-space: nowrap; color: #728087; font: 8px var(--mono); letter-spacing: .08em; pointer-events: none !important; }
+    .zoom-tools { position: absolute; right: 24px; bottom: 158px; display: flex; flex-direction: column; gap: 6px; }
+    .zoom-tools .icon-button { border-radius: 4px; background: rgba(7,12,19,.74); }
+    .bottom-dock { position: absolute; left: 24px; right: 24px; bottom: 20px; border: 1px solid rgba(184,208,212,.16); border-radius: 5px; background: rgba(8,14,21,.86); backdrop-filter: blur(18px); padding: 12px 15px 11px; }
+    .dock-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .dock-title { color: #86959a; font: 9px var(--mono); text-transform: uppercase; letter-spacing: .13em; }
+    .dock-meta { display: flex; align-items: center; gap: 11px; }
+    .dock-explainer, .dock-note { color: #66747a; font: 8px var(--mono); }
+    .dock-note { text-decoration: none; white-space: nowrap; }
+    .dock-note:hover { color: var(--mint); }
+    .distance-track { height: 28px; position: relative; display: flex; align-items: center; justify-content: space-between; gap: 5px; }
+    .distance-track::before { content: ""; position: absolute; height: 1px; background: linear-gradient(90deg, rgba(169,216,197,.7), rgba(159,201,232,.35), rgba(239,200,131,.45)); left: 2px; right: 2px; top: 50%; opacity: .55; }
+    .distance-stop { position: relative; border: 0; background: transparent; padding: 0; width: 24px; height: 28px; cursor: pointer; display: grid; place-items: center; }
+    .distance-stop::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--planet-color); box-shadow: 0 0 9px color-mix(in srgb, var(--planet-color) 65%, transparent); transition: transform .18s; }
+    .distance-stop:hover::before, .distance-stop.active::before { transform: scale(1.8); }
+    .distance-stop.active::after { content: ""; position: absolute; width: 13px; height: 13px; border: 1px solid var(--planet-color); border-radius: 50%; opacity: .65; }
+    .distance-labels { display: flex; justify-content: space-between; gap: 4px; margin-top: 4px; }
+    .distance-labels button { border: 0; background: transparent; color: #67747a; padding: 0; font: 7px var(--mono); cursor: pointer; }
+    .distance-labels button.active { color: var(--mint); }
+    .right .rail-head { padding: 22px 19px 14px; }
+    .selected-heading { display: flex; align-items: center; gap: 11px; margin-top: 12px; }
+    .selected-orb { width: 30px; height: 30px; border-radius: 50%; background: radial-gradient(circle at 32% 28%, #fff8dc 0, #efc883 35%, #a86235 100%); box-shadow: 0 0 22px rgba(239,200,131,.21); }
+    .selected-name { font-size: 17px; font-weight: 500; line-height: 1.15; }
+    .selected-sub { margin-top: 4px; color: #738187; font: 8px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .field-lesson { padding: 11px 19px 13px; border-left: 2px solid rgba(169,216,197,.48); border-bottom: 1px solid var(--line); background: rgba(169,216,197,.035); }
+    .lesson-kicker { color: #718078; font: 8px var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+    .lesson-title { display: block; margin-top: 5px; color: #cbdad2; font-size: 11px; font-weight: 600; }
+    .lesson-copy { margin: 5px 0 0; color: #aebbbc; font-size: 10px; line-height: 1.55; }
+    .fact-grid { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--line); }
+    .fact { padding: 13px 14px 12px 19px; border-bottom: 1px solid rgba(184,208,212,.08); }
+    .fact:nth-child(2n) { border-left: 1px solid rgba(184,208,212,.08); padding-left: 14px; }
+    .fact:nth-last-child(-n+2) { border-bottom: 0; }
+    .fact-label { color: #6f7e83; font: 8px var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    .fact-value { margin-top: 6px; color: #dbe3df; font: 11px var(--mono); }
+    .compare { padding: 14px 19px 15px; border-bottom: 1px solid var(--line); }
+    .compare-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .compare-title { color: #78868b; font: 8px var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    .compare-select { border: 0; color: var(--mint); background: transparent; font: 9px var(--mono); outline: none; cursor: pointer; }
+    .compare-bar { margin-top: 12px; height: 3px; background: rgba(184,208,212,.13); position: relative; border-radius: 2px; overflow: hidden; }
+    .compare-fill { height: 100%; background: linear-gradient(90deg, var(--mint), var(--amber)); width: 20%; transition: width .5s cubic-bezier(.2,.75,.3,1); }
+    .compare-caption { display: flex; justify-content: space-between; margin-top: 6px; color: #849195; font: 8px var(--mono); }
+    .mission-area { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 14px 13px 18px 19px; }
+    .section-line { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .section-line h2 { margin: 0; color: #829095; font: 9px var(--mono); font-weight: 400; letter-spacing: .12em; text-transform: uppercase; }
+    .section-count { color: #5d6b71; font: 8px var(--mono); }
+    .mission-list { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: rgba(169,216,197,.2) transparent; }
+    .mission { width: 100%; text-align: left; padding: 10px 9px; border: 1px solid transparent; border-bottom-color: rgba(184,208,212,.08); background: transparent; cursor: pointer; border-radius: 3px; transition: background .2s, border-color .2s; }
+    .mission:hover, .mission.active { background: rgba(255,255,255,.035); border-color: rgba(184,208,212,.12); }
+    .mission-row { display: flex; justify-content: space-between; gap: 6px; align-items: center; }
+    .mission-name { font-size: 10px; color: #c2ccca; }
+    .mission-status { color: var(--mint); font: 7px var(--mono); text-transform: uppercase; letter-spacing: .07em; }
+    .mission-status.past { color: #82909a; }
+    .mission-meta { margin-top: 5px; color: #718087; font: 8px var(--mono); }
+    .mission-detail { margin-top: 11px; padding: 10px; border-left: 1px solid rgba(169,216,197,.45); color: #89969a; font-size: 9px; line-height: 1.5; background: rgba(169,216,197,.035); }
+    .mission-detail strong { color: #c4d5cd; font-weight: 500; }
+    .scale-note { position: absolute; left: 28px; bottom: 155px; color: #65737a; font: 8px var(--mono); letter-spacing: .06em; pointer-events: none !important; }
+    .toast { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 11px 15px; border: 1px solid rgba(169,216,197,.25); border-radius: 4px; color: #dbe7e0; background: rgba(8,14,21,.92); font: 10px var(--mono); pointer-events: none; opacity: 0; transition: opacity .2s; }
+    .toast.show { opacity: 1; }
+    .loading { position: absolute; inset: 76px 0 0; display: grid; place-items: center; color: #a9d8c5; background: #080d14; font: 10px var(--mono); letter-spacing: .16em; z-index: 5; transition: opacity .6s; }
+    .loading.done { opacity: 0; pointer-events: none; }
+    @media (max-width: 1080px) {
+      .workspace { grid-template-columns: 218px minmax(0, 1fr) 276px; }
+      .rail-head { padding-left: 14px; padding-right: 14px; }
+      .object-list { padding-left: 6px; padding-right: 6px; }
+      .right .rail-head { padding-left: 15px; padding-right: 15px; }
+    }
+    @media (max-width: 800px) {
+      html, body { overflow: auto; min-height: 100%; }
+      .app { min-height: 100vh; height: auto; display: flex; flex-direction: column; }
+      #universe { position: fixed; inset: 0; }
+      .topbar { height: 62px; padding: 0 16px; flex: none; }
+      .brand { min-width: auto; }
+      .brand-sub, .top-center, .live { display: none; }
+      .workspace { position: relative; inset: auto; display: flex; flex-direction: column; gap: 0; flex: 1; }
+      .stage { order: 0; height: min(64vh, 520px); min-height: 390px; flex: none; }
+      .stage > * { pointer-events: auto; }
+      .scene-title { top: 16px; left: 16px; }
+      .scene-title h1 { font-size: 15px; }
+      .mode-switch { top: 12px; right: 12px; }
+      .scene-tip { top: 67px; font-size: 7px; }
+      .zoom-tools { right: 12px; bottom: 126px; }
+      .bottom-dock { left: 12px; right: 12px; bottom: 12px; padding: 10px 11px; }
+      .dock-meta { display: none; }
+      .distance-labels button { font-size: 6px; }
+      .scale-note { left: 17px; bottom: 115px; }
+      .rail { min-height: auto; border-right: 0; border-top: 1px solid var(--line); }
+      .rail.left { order: 1; max-height: 270px; }
+      .rail.left .rail-head { padding: 15px 15px 8px; }
+      .group-label { padding: 8px 15px 5px; }
+      .object-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 190px; }
+      .object-row { height: 34px; }
+      .rail.right { order: 2; border-left: 0; }
+      .right .rail-head { padding: 17px 16px 12px; }
+      .fact { padding: 10px 12px 10px 16px; }
+      .fact:nth-child(2n) { padding-left: 12px; }
+      .compare { padding: 12px 16px; }
+      .mission-area { flex: none; padding: 13px 12px 24px 16px; max-height: 260px; }
+      .loading { position: fixed; }
+    }
+    @media (max-width: 420px) {
+      .topbar { padding: 0 12px; }
+      .brand-name { font-size: 10px; }
+      .stage { min-height: 370px; }
+      .mode-button { padding: 6px 7px; font-size: 8px; }
+      .scene-tip { left: 16px; transform: none; top: 68px; }
+      .distance-track { gap: 1px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div id="universe" aria-label="Interactive 3D solar system"></div>
+    <div class="space-wash"></div>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">✳</div>
+        <div><div class="brand-name">ORBIT ATLAS</div><div class="brand-sub">A FIELD GUIDE TO THE COSMOS</div></div>
+      </div>
+      <div class="top-center">Solar neighborhood / 01</div>
+      <div class="top-right">
+        <div class="live"><span class="live-dot"></span> LIVE ORBITS</div>
+        <button class="icon-button" id="motion-toggle" aria-label="Pause orbital animation" aria-pressed="false" title="Pause or resume motion">
+          <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5 3.5a.7.7 0 0 1 1.06-.6l6.3 3.9a1.4 1.4 0 0 1 0 2.4l-6.3 3.9A.7.7 0 0 1 5 12.5z"/></svg>
+        </button>
+      </div>
+    </header>
+    <main class="workspace">
+      <aside class="rail left" aria-label="Celestial objects">
+        <div class="rail-head">
+          <div class="eyebrow">Browse the system</div>
+          <div class="search-wrap">
+            <svg class="search-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="6.8" cy="6.8" r="4.6" stroke="currentColor" stroke-width="1.3"/><path d="m10.2 10.2 3.2 3.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            <input class="search" id="search" type="search" placeholder="Find a world or mission" autocomplete="off" aria-label="Search celestial objects">
+          </div>
+        </div>
+        <div class="group-label">The planets <span id="planet-count">08</span></div>
+        <div class="object-list" id="object-list"></div>
+      </aside>
+      <section class="stage" aria-label="Solar system visualization">
+        <div class="scene-title"><div class="eyebrow">Our planetary system</div><h1>One star. Eight worlds.</h1><p>Move through our neighborhood in space.</p></div>
+        <div class="mode-switch" role="group" aria-label="Visualization mode">
+          <button class="mode-button active" data-mode="orbits" aria-pressed="true">ORBITAL MAP</button>
+          <button class="mode-button" data-mode="sizes" aria-pressed="false">TRUE SIZES</button>
+        </div>
+        <div class="scene-tip">DRAG TO ROTATE&nbsp; / &nbsp;SCROLL TO ZOOM&nbsp; / &nbsp;SELECT A WORLD</div>
+        <div class="zoom-tools">
+          <button class="icon-button" id="zoom-in" aria-label="Zoom in" title="Zoom in"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>
+          <button class="icon-button" id="zoom-out" aria-label="Zoom out" title="Zoom out"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>
+        </div>
+        <div class="scale-note" id="scale-note">DISTANCE SCALE: COMPRESSED FOR CLARITY</div>
+        <section class="bottom-dock" aria-label="Orbital distance comparison">
+          <div class="dock-top"><div class="dock-title" id="dock-title">Distance from the Sun <span style="color:#58666c">/ AU</span></div><div class="dock-meta"><span class="dock-explainer" id="dock-explainer">1 AU = average Earth-Sun distance · orbital spacing compressed</span><a class="dock-note" href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noreferrer">Maps: Solar System Scope · CC BY 4.0</a></div></div>
+          <div class="distance-track" id="distance-track"></div>
+          <div class="distance-labels" id="distance-labels"></div>
+        </section>
+      </section>
+      <aside class="rail right" aria-label="Selected object details">
+        <div class="rail-head">
+          <div class="eyebrow" id="detail-kicker">Planet profile / 03</div>
+          <div class="selected-heading"><div class="selected-orb" id="selected-orb"></div><div><div class="selected-name" id="selected-name">Earth</div><div class="selected-sub" id="selected-sub">Terrestrial planet · 1 AU</div></div></div>
+        </div>
+        <section class="field-lesson" aria-label="Field lesson">
+          <div class="lesson-kicker">Field lesson</div>
+          <strong class="lesson-title" id="lesson-title">Liquid water</strong>
+          <p class="lesson-copy" id="lesson-copy">Earth's surface pressure and temperature let water exist as solid, liquid, and gas.</p>
+        </section>
+        <div class="fact-grid" id="fact-grid"></div>
+        <div class="compare">
+          <div class="compare-head"><div class="compare-title">Compared with Earth</div><select id="compare-kind" class="compare-select" aria-label="Comparison metric"><option value="diameter">Diameter</option><option value="distance">Sun distance</option><option value="year">Orbital year</option></select></div>
+          <div class="compare-bar"><div class="compare-fill" id="compare-fill"></div></div>
+          <div class="compare-caption"><span id="compare-left">Earth · 1×</span><span id="compare-right">Earth · 1×</span></div>
+        </div>
+        <section class="mission-area" aria-label="Related space missions">
+          <div class="section-line"><h2>Mission log</h2><span class="section-count" id="mission-count">03 MISSIONS</span></div>
+          <div class="mission-list" id="mission-list"></div>
+          <div class="mission-detail" id="mission-detail"></div>
+        </section>
+      </aside>
+    </main>
+    <div class="loading" id="loading">MAPPING THE NEIGHBORHOOD...</div>
+    <div class="toast" id="toast" role="status"></div>
+  </div>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const planets = [
+      { id:'mercury', name:'Mercury', type:'Terrestrial', distance:.39, radius:.38, diameter:'4,879 km', day:'58.6 days', year:'88 days', moons:'0', color:'#a99b8b', hex:0xa99b8b, lead:'A small, cratered world that swings through the most extreme temperatures in the Solar System.', lessonTitle:'A solar day lasts longer than its year', lesson:'Mercury rotates slowly. Sunrise to sunrise takes about 176 Earth days, even though it orbits the Sun in 88.', texture:'rock', tilt:.03 },
+      { id:'venus', name:'Venus', type:'Terrestrial', distance:.72, radius:.72, diameter:'12,104 km', day:'243 days', year:'225 days', moons:'0', color:'#d7aa74', hex:0xd7aa74, lead:'A bright world wrapped in thick clouds, with a surface hot enough to melt lead.', lessonTitle:'A world turned backward', lesson:'Venus rotates in the opposite direction from most planets. Its slow rotation takes longer than its trip around the Sun.', texture:'cloud', tilt:.04 },
+      { id:'earth', name:'Earth', type:'Terrestrial', distance:1, radius:.78, diameter:'12,742 km', day:'23.9 hours', year:'365 days', moons:'1', color:'#61a9c7', hex:0x61a9c7, lead:'Our pale blue home is the only known world with stable liquid water on its surface.', lessonTitle:'Liquid water', lesson:'Earth’s surface pressure and temperature let water exist as solid, liquid, and gas, supporting a dynamic climate and life.', texture:'earth', tilt:.41 },
+      { id:'mars', name:'Mars', type:'Terrestrial', distance:1.52, radius:.53, diameter:'6,779 km', day:'24.6 hours', year:'687 days', moons:'2', color:'#d87854', hex:0xd87854, lead:'A cold desert world with ancient river valleys and the tallest volcano known in the Solar System.', lessonTitle:'Reading an ancient landscape', lesson:'Dry river channels and lake deposits preserve evidence that liquid water once flowed and collected on Mars.', texture:'mars', tilt:.44 },
+      { id:'jupiter', name:'Jupiter', type:'Gas giant', distance:5.2, radius:8.75, diameter:'139,820 km', day:'9.9 hours', year:'11.9 years', moons:'95+', color:'#d5b28d', hex:0xd5b28d, lead:'The giant of our planetary system: a banded world with storms larger than Earth.', lessonTitle:'Bands are moving weather', lesson:'Jupiter has no solid surface to stand on. Its visible stripes are cloud bands moving at different speeds, with storms such as the Great Red Spot.', texture:'bands', tilt:.05 },
+      { id:'saturn', name:'Saturn', type:'Gas giant', distance:9.58, radius:7.25, diameter:'116,460 km', day:'10.7 hours', year:'29.4 years', moons:'146+', color:'#dbbf88', hex:0xdbbf88, lead:'A gas giant encircled by bright rings made mostly of countless pieces of ice and rock.', lessonTitle:'A vast but very thin ring system', lesson:'Saturn’s main rings stretch across a huge distance, but are generally only tens of meters thick.', texture:'bands', tilt:.47, rings:true },
+      { id:'uranus', name:'Uranus', type:'Ice giant', distance:19.2, radius:3.13, diameter:'50,724 km', day:'17.2 hours', year:'84 years', moons:'28', color:'#91c8cb', hex:0x91c8cb, lead:'An ice giant that rotates almost on its side, giving it seasons unlike any other planet.', lessonTitle:'A planet on its side', lesson:'Uranus’s axial tilt is about 98 degrees. Each pole can face the Sun for roughly a quarter of its 84-year orbit.', texture:'ice', tilt:1.71 },
+      { id:'neptune', name:'Neptune', type:'Ice giant', distance:30.05, radius:3.03, diameter:'49,244 km', day:'16.1 hours', year:'165 years', moons:'16', color:'#557ce0', hex:0x557ce0, lead:'A deep-blue world where supersonic winds race through a cold, dynamic atmosphere.', lessonTitle:'Active weather far from the Sun', lesson:'Neptune receives little sunlight, yet its atmosphere has powerful winds and changing storms.', texture:'ice', tilt:.49 },
+    ];
+    const missions = [
+      { id:'jwst', name:'James Webb Space Telescope', target:'Deep space', date:'Operating since 2022', status:'ACTIVE', description:'Observes the infrared universe, revealing early galaxies, star-forming regions, and atmospheres around distant exoplanets.', targets:['sun','earth','jupiter','saturn','uranus','neptune'] },
+      { id:'voyager', name:'Voyager 1 & 2', target:'Interstellar space', date:'Launched 1977', status:'ACTIVE', description:'Twin spacecraft completed the first close-up tours of the outer planets and now send data from beyond the heliosphere.', targets:['jupiter','saturn','uranus','neptune'] },
+      { id:'juno', name:'Juno', target:'Jupiter', date:'Arrived 2016', status:'ACTIVE', description:'Maps Jupiter’s gravity and magnetic fields while studying its deep atmosphere and polar auroras.', targets:['jupiter'] },
+      { id:'perseverance', name:'Perseverance', target:'Mars', date:'Landed 2021', status:'ACTIVE', description:'Explores Jezero Crater, collecting rock samples that may one day be returned to Earth.', targets:['mars'] },
+      { id:'artemis', name:'Artemis II', target:'Lunar flyby', date:'Crewed test flight', status:'PLANNED', description:'A planned crewed journey around the Moon to test systems for future human exploration.', targets:['earth'] },
+      { id:'messenger', name:'MESSENGER', target:'Mercury', date:'Mission ended 2015', status:'COMPLETE', description:'The first spacecraft to orbit Mercury mapped the planet and transformed our understanding of its surface and interior.', targets:['mercury'] },
+      { id:'magellan', name:'Magellan', target:'Venus', date:'Mission ended 1994', status:'COMPLETE', description:'Used radar to map nearly the entire surface of Venus through its cloud cover.', targets:['venus'] },
+    ];
+    const sunData = { id:'sun', name:'The Sun', type:'Star', distance:0, radius:3.1, diameter:'1.39 million km', day:'25–35 days', year:'230 million years', moons:'8 planets', color:'#f4c978', hex:0xf4c978, lead:'The star at the center of our system holds the planets in orbit and supplies nearly all the energy that reaches Earth.', lessonTitle:'A star powered by fusion', lesson:'In the Sun’s core, hydrogen nuclei fuse into helium and release energy that travels outward as sunlight.', texture:'sun', tilt:0 };
+    const objects = [sunData, ...planets];
+    const $ = (id) => document.getElementById(id);
+    const state = { selected:'earth', mode:'orbits', paused:false, selectedMission:null, search:'' };
+    let scene, camera, renderer, controls, sun, planetMeshes = new Map(), cloudLayers = new Map(), orbitLines = [], starField, animationFrame, lastTime = 0, targetCamera = null;
+    const planetById = new Map(planets.map(p => [p.id,p]));
+    const orbitRadii = new Map(planets.map((p,i) => [p.id, 7 + i * 4.25]));
+    const sizeModePositions = new Map();
+    const sizeModeExtents = new Map(planets.map(p => [p.id, p.rings ? p.radius * 2.3 : p.radius]));
+    let sizeModeWidth = 0;
+    for (const p of planets) sizeModeWidth += sizeModeExtents.get(p.id) * 2 + 1.05;
+    let sizeModeCursor = -sizeModeWidth / 2;
+    for (const p of planets) {
+      const displayedRadius = sizeModeExtents.get(p.id);
+      sizeModePositions.set(p.id, sizeModeCursor + displayedRadius);
+      sizeModeCursor += displayedRadius * 2 + 1.05;
+    }
+    const orbitDisplayScale = (planet) => .45 + .45 * Math.sqrt(planet.radius / 8.75);
+    const textureManager = new THREE.LoadingManager();
+    textureManager.onLoad = () => $('loading').classList.add('done');
+    const textureLoader = new THREE.TextureLoader(textureManager);
+    function loadTexture(fileName) {
+      const texture = textureLoader.load(`assets/textures/${fileName}`);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = 8;
+      return texture;
+    }
+    function makeAtmosphere(color,intensity){return new THREE.Mesh(new THREE.SphereGeometry(.78*1.12,40,28),new THREE.ShaderMaterial({uniforms:{uColor:{value:new THREE.Color(color)},uIntensity:{value:intensity}},vertexShader:'varying vec3 vNormal; varying vec3 vViewPosition; void main(){vec4 mvPosition=modelViewMatrix*vec4(position,1.0);vNormal=normalize(normalMatrix*normal);vViewPosition=-mvPosition.xyz;gl_Position=projectionMatrix*mvPosition;}',fragmentShader:'uniform vec3 uColor; uniform float uIntensity; varying vec3 vNormal; varying vec3 vViewPosition; void main(){float rim=pow(1.0-max(dot(normalize(vNormal),normalize(vViewPosition)),0.0),2.3);gl_FragColor=vec4(uColor,rim*uIntensity);}',side:THREE.BackSide,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));}
+    function addOrbit(radius, color=0x8ea4a5) {
+      const points=[]; for(let i=0;i<=256;i++){const a=i/256*Math.PI*2;points.push(new THREE.Vector3(Math.cos(a)*radius,0,Math.sin(a)*radius));}
+      const geometry=new THREE.BufferGeometry().setFromPoints(points); const material=new THREE.LineBasicMaterial({color,transparent:true,opacity:.24});
+      const line=new THREE.LineLoop(geometry,material); scene.add(line); orbitLines.push(line); return line;
+    }
+    function initScene() {
+      const host=$('universe'); scene=new THREE.Scene(); scene.background=new THREE.Color(0x080d14); scene.fog=new THREE.FogExp2(0x080d14,.0017);
+      camera=new THREE.PerspectiveCamera(48,host.clientWidth/host.clientHeight,.1,700); camera.position.set(4,58,79);
+      renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'}); renderer.setPixelRatio(Math.min(devicePixelRatio,1.8)); renderer.setSize(host.clientWidth,host.clientHeight); renderer.outputColorSpace=THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.15; host.appendChild(renderer.domElement);
+      controls=new OrbitControls(camera,renderer.domElement); controls.enableDamping=true; controls.dampingFactor=.055; controls.minDistance=13; controls.maxDistance=150; controls.maxPolarAngle=Math.PI*.49; controls.target.set(0,0,0);
+      scene.add(new THREE.AmbientLight(0x91abc2,.68));
+      const sunLight=new THREE.PointLight(0xffd392,760,250,1.35);sunLight.position.set(0,0,0);scene.add(sunLight);
+      sun=new THREE.Mesh(new THREE.SphereGeometry(3.1,48,32),new THREE.MeshBasicMaterial({map:loadTexture('2k_sun.jpg')})); scene.add(sun);
+      const sunGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:makeGlowTexture(),color:0xf4b650,transparent:true,opacity:.42,depthWrite:false,blending:THREE.AdditiveBlending}));sunGlow.scale.set(18,18,1);sun.add(sunGlow);
+      const planetTextures={mercury:'2k_mercury.jpg',venus:'2k_venus_surface.jpg',earth:'2k_earth_daymap.jpg',mars:'2k_mars.jpg',jupiter:'2k_jupiter.jpg',saturn:'2k_saturn.jpg',uranus:'2k_uranus.jpg',neptune:'2k_neptune.jpg'};
+      for(const p of planets){
+        const material=new THREE.MeshStandardMaterial({map:loadTexture(planetTextures[p.id]),roughness:p.texture==='bands'?.9:.96,metalness:0});
+        const mesh=new THREE.Mesh(new THREE.SphereGeometry(.78,48,32),material);
+        mesh.scale.setScalar(orbitDisplayScale(p));
+        const r=orbitRadii.get(p.id), a=Math.random()*Math.PI*2; mesh.position.set(Math.cos(a)*r,0,Math.sin(a)*r); mesh.rotation.z=p.tilt; mesh.userData={id:p.id,angle:a,orbit:r}; scene.add(mesh); planetMeshes.set(p.id,mesh);
+        const orbit=addOrbit(r,p.hex); orbit.material.opacity=.24;
+        if(p.rings){
+          const innerRadius=.78*1.22,outerRadius=.78*2.3,ringGeometry=new THREE.RingGeometry(innerRadius,outerRadius,256,1);
+          const positions=ringGeometry.attributes.position,uv=ringGeometry.attributes.uv;
+          for(let i=0;i<positions.count;i++){const radius=Math.hypot(positions.getX(i),positions.getY(i));uv.setXY(i,(radius-innerRadius)/(outerRadius-innerRadius),.5);}
+          uv.needsUpdate=true;
+          const ringTexture=loadTexture('2k_saturn_ring_alpha.png');ringTexture.wrapS=THREE.ClampToEdgeWrapping;ringTexture.wrapT=THREE.ClampToEdgeWrapping;
+          const ring=new THREE.Mesh(ringGeometry,new THREE.MeshStandardMaterial({map:ringTexture,alphaMap:ringTexture,side:THREE.DoubleSide,transparent:true,opacity:.96,roughness:.9,depthWrite:false}));ring.rotation.x=-Math.PI/2;mesh.add(ring);
+        }
+        if(p.id==='earth'){
+          const cloudMap=loadTexture('2k_earth_clouds.jpg');
+          const clouds=new THREE.Mesh(new THREE.SphereGeometry(.78*1.012,48,32),new THREE.MeshLambertMaterial({map:cloudMap,alphaMap:cloudMap,transparent:true,depthWrite:false,opacity:.58}));mesh.add(clouds);cloudLayers.set(p.id,clouds);
+        }
+        if(p.id==='venus'){
+          const venusClouds=new THREE.Mesh(new THREE.SphereGeometry(.78*1.014,48,32),new THREE.MeshBasicMaterial({map:loadTexture('2k_venus_atmosphere.jpg'),transparent:true,opacity:.38,depthWrite:false}));mesh.add(venusClouds);
+        }
+        const atmospheres={venus:[0xe7bc83,.24],earth:[0x66b7e8,.4],mars:[0xd06b42,.1],jupiter:[0xe0b780,.18],saturn:[0xe0cb9c,.14],uranus:[0x91d9e4,.29],neptune:[0x668bea,.36]};
+        if(atmospheres[p.id])mesh.add(makeAtmosphere(...atmospheres[p.id]));
+      }
+      const starCount=4300, starPositions=new Float32Array(starCount*3), starColors=new Float32Array(starCount*3);
+      for(let i=0;i<starCount;i++){const radius=150+Math.random()*350,theta=Math.random()*Math.PI*2,phi=Math.acos(2*Math.random()-1);starPositions[i*3]=radius*Math.sin(phi)*Math.cos(theta);starPositions[i*3+1]=radius*Math.cos(phi);starPositions[i*3+2]=radius*Math.sin(phi)*Math.sin(theta);const c=new THREE.Color().setHSL(.52+Math.random()*.12,.12+Math.random()*.24,.55+Math.random()*.4);starColors.set([c.r,c.g,c.b],i*3);}
+      const starGeo=new THREE.BufferGeometry();starGeo.setAttribute('position',new THREE.BufferAttribute(starPositions,3));starGeo.setAttribute('color',new THREE.BufferAttribute(starColors,3));
+      starField=new THREE.Points(starGeo,new THREE.PointsMaterial({size:.55,vertexColors:true,transparent:true,opacity:.82,sizeAttenuation:true}));scene.add(starField);
+      window.addEventListener('resize',resizeScene); renderer.domElement.addEventListener('pointerdown',onPointerDown);
+      animate(0);
+    }
+    function makeGlowTexture(){const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d'),g=x.createRadialGradient(64,64,2,64,64,64);g.addColorStop(0,'rgba(255,230,150,.8)');g.addColorStop(.25,'rgba(250,181,65,.27)');g.addColorStop(1,'rgba(240,151,37,0)');x.fillStyle=g;x.fillRect(0,0,128,128);return new THREE.CanvasTexture(c);}
+    function resizeScene(){if(!renderer)return;const host=$('universe');camera.aspect=host.clientWidth/host.clientHeight;camera.updateProjectionMatrix();renderer.setSize(host.clientWidth,host.clientHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.8));}
+    function onPointerDown(event){const rect=renderer.domElement.getBoundingClientRect(),pointer=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-((event.clientY-rect.top)/rect.height)*2+1),raycaster=new THREE.Raycaster();raycaster.setFromCamera(pointer,camera);const hits=raycaster.intersectObjects([sun,...planetMeshes.values()],false);if(hits.length){const id=hits[0].object===sun?'sun':hits[0].object.userData.id;selectObject(id,true);}}
+    function initList(){const list=$('object-list');list.innerHTML=planets.map((p,i)=>`<button class="object-row" data-object="${p.id}"><span class="object-dot" style="background:${p.color}"></span><span class="object-label">${p.name}</span><span class="object-kind">${p.type.split(' ')[0]}</span></button>`).join('');list.addEventListener('click',e=>{const row=e.target.closest('[data-object]');if(row)selectObject(row.dataset.object,true);});
+      $('distance-track').innerHTML=planets.map(p=>`<button class="distance-stop" data-object="${p.id}" style="--planet-color:${p.color}" aria-label="Select ${p.name}" title="${p.name}: ${p.distance} AU"></button>`).join('');
+      $('distance-labels').innerHTML=planets.map(p=>`<button data-object="${p.id}">${p.name.slice(0,3).toUpperCase()}</button>`).join('');$('distance-track').addEventListener('click',e=>{const b=e.target.closest('[data-object]');if(b)selectObject(b.dataset.object,true);});$('distance-labels').addEventListener('click',e=>{const b=e.target.closest('[data-object]');if(b)selectObject(b.dataset.object,true);});
+    }
+    function renderFacts(obj){$('selected-orb').style.background=`radial-gradient(circle at 32% 28%, #f5f4ed 0, ${obj.color} 42%, #26343b 100%)`;$('selected-orb').style.boxShadow=`0 0 22px ${obj.color}35`;$('detail-kicker').textContent=`${obj.type} profile / ${obj.id==='sun'?'STAR':String(planets.findIndex(p=>p.id===obj.id)+1).padStart(2,'0')}`;$('selected-name').textContent=obj.name;$('selected-sub').textContent=`${obj.type} · ${obj.distance===0?'Center of system':obj.distance+' AU'}`;$('lesson-title').textContent=obj.lessonTitle;$('lesson-copy').textContent=obj.lesson;
+      const facts=[['Diameter',obj.diameter],['Rotation',obj.day],['Orbital year',obj.year],['Known moons',obj.moons]];$('fact-grid').innerHTML=facts.map(([k,v])=>`<div class="fact"><div class="fact-label">${k}</div><div class="fact-value">${v}</div></div>`).join('');updateComparison();renderMissions();}
+    function selectObject(id,focus=false){const obj=objects.find(o=>o.id===id);if(!obj)return;state.selected=id;document.querySelectorAll('.object-row,.distance-stop,.distance-labels button').forEach(el=>el.classList.toggle('active',el.dataset.object===id));document.querySelectorAll('.object-row').forEach(el=>el.setAttribute('aria-pressed',el.dataset.object===id));renderFacts(obj);if(focus){const target=id==='sun'?new THREE.Vector3(0,0,0):planetMeshes.get(id).position.clone();targetCamera={target,frames:45};showToast(`${obj.name.toUpperCase()} SELECTED`);}}
+    function updateComparison(){const obj=objects.find(o=>o.id===state.selected),kind=$('compare-kind').value;let ratio=1,label='Earth';if(kind==='diameter'){const d=parseFloat(obj.diameter.replace(/,/g,''));const e=12742;ratio=d/e;label=obj.name;}else if(kind==='distance'){ratio=obj.distance||0;label=obj.name;}else{const days=parseYearDays(obj.year);ratio=days/365;label=obj.name;}const width=Math.max(3,Math.min(100,Math.log10(Math.max(ratio,.01)+1)/Math.log10(166+1)*100));$('compare-fill').style.width=`${width}%`;$('compare-left').textContent=kind==='distance'?'Sun · 1 AU':'Earth · 1×';$('compare-right').textContent=`${label} · ${ratio===0?'0':ratio<.01?ratio.toExponential(1):ratio.toLocaleString(undefined,{maximumFractionDigits:2})}×`;}
+    function parseYearDays(str){if(str.includes('million years'))return 365*1000000;if(str.includes('years'))return parseFloat(str)*365;if(str.includes('days'))return parseFloat(str);if(str.includes('hours'))return parseFloat(str)/24;return 1;}
+    function renderMissions(){const matches=missions.filter(m=>m.targets.includes(state.selected));const list=matches.length?matches:missions.slice(0,3);$('mission-count').textContent=`${String(list.length).padStart(2,'0')} MISSIONS`;$('mission-list').innerHTML=list.map((m,i)=>`<button class="mission ${state.selectedMission===m.id?'active':''}" data-mission="${m.id}"><div class="mission-row"><span class="mission-name">${m.name}</span><span class="mission-status ${m.status==='COMPLETE'?'past':''}">${m.status}</span></div><div class="mission-meta">${m.target} · ${m.date}</div></button>`).join('');$('mission-list').onclick=e=>{const b=e.target.closest('[data-mission]');if(!b)return;state.selectedMission=b.dataset.mission;const m=missions.find(x=>x.id===b.dataset.mission);$('mission-detail').innerHTML=`<strong>${m.name}</strong><br>${m.description}`;renderMissions();};const active=missions.find(m=>m.id===state.selectedMission&&list.some(x=>x.id===m.id))||list[0];state.selectedMission=active.id;$('mission-detail').innerHTML=`<strong>${active.name}</strong><br>${active.description}`;}
+    function setMode(mode){state.mode=mode;document.querySelectorAll('.mode-button').forEach(b=>{const active=b.dataset.mode===mode;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});const duration=1100;sun.visible=mode!=='sizes';for(const [id,m] of planetMeshes){const p=planetById.get(id);if(mode==='sizes'){m.userData.targetRadius=0;m.userData.targetX=sizeModePositions.get(id);m.userData.targetZ=0;m.userData.targetScale=p.radius/.78;}else{m.userData.targetRadius=orbitRadii.get(id);m.userData.targetX=null;m.userData.targetZ=null;m.userData.targetScale=orbitDisplayScale(p);}}
+      const start=performance.now();const from=new Map([...planetMeshes].map(([id,m])=>[id,{x:m.position.x,z:m.position.z,r:m.scale.x}]));const tick=()=>{const t=Math.min(1,(performance.now()-start)/duration),ease=1-Math.pow(1-t,3);for(const [id,m] of planetMeshes){const destR=m.userData.targetRadius,destX=m.userData.targetX,destZ=m.userData.targetZ,src=from.get(id);if(mode==='sizes'){m.position.x=THREE.MathUtils.lerp(src.x,destX,ease);m.position.z=THREE.MathUtils.lerp(src.z,destZ,ease);m.scale.setScalar(THREE.MathUtils.lerp(src.r,m.userData.targetScale,ease));}else{const angle=m.userData.angle;m.position.x=THREE.MathUtils.lerp(src.x,Math.cos(angle)*destR,ease);m.position.z=THREE.MathUtils.lerp(src.z,Math.sin(angle)*destR,ease);m.scale.setScalar(THREE.MathUtils.lerp(src.r,orbitDisplayScale(planetById.get(id)),ease));}}orbitLines.forEach(o=>{o.visible=mode==='orbits';});if(t<1)requestAnimationFrame(tick);};tick();$('scale-note').textContent=mode==='sizes'?'PLANET DIAMETERS: RELATIVE TO EARTH · SUN HIDDEN':'DISTANCE SCALE: COMPRESSED FOR CLARITY';$('dock-title').innerHTML=mode==='sizes'?'Planet diameter <span style="color:#58666c">/ relative to Earth</span>':'Distance from the Sun <span style="color:#58666c">/ AU</span>';$('dock-explainer').textContent=mode==='sizes'?'Planet diameters relative to Earth · Sun hidden':'1 AU = average Earth-Sun distance · orbital spacing compressed';if(mode==='sizes')showToast('TRUE SIZE COMPARISON · EARTH = 1');}
+    function showToast(text){const el=$('toast');el.textContent=text;el.classList.add('show');clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>el.classList.remove('show'),1300);}
+    function bindControls(){document.querySelectorAll('.mode-button').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));$('compare-kind').addEventListener('change',updateComparison);$('search').addEventListener('input',e=>{const q=e.target.value.trim().toLowerCase();document.querySelectorAll('.object-row').forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(q));const any=[...document.querySelectorAll('.object-row')].some(r=>!r.hidden);let msg=document.querySelector('.empty-search');if(!any&&!msg){msg=document.createElement('div');msg.className='empty-search';msg.textContent='No worlds match that search.';$('object-list').appendChild(msg);}if(any&&msg)msg.remove();});$('motion-toggle').addEventListener('click',e=>{state.paused=!state.paused;const button=e.currentTarget;button.setAttribute('aria-pressed',String(state.paused));button.setAttribute('aria-label',state.paused?'Resume orbital animation':'Pause orbital animation');button.innerHTML=state.paused?'<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5 3.5a.7.7 0 0 1 1.06-.6l6.3 3.9a1.4 1.4 0 0 1 0 2.4l-6.3 3.9A.7.7 0 0 1 5 12.5z"/></svg>':'<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4.5 3.5h2.7v9H4.5zm4.3 0h2.7v9H8.8z"/></svg>';showToast(state.paused?'ORBITAL MOTION PAUSED':'ORBITAL MOTION RESUMED');});$('zoom-in').addEventListener('click',()=>{camera.position.multiplyScalar(.82);controls.update();});$('zoom-out').addEventListener('click',()=>{camera.position.multiplyScalar(1.22);controls.update();});$('compare-kind').value='diameter';}
+    function handleCameraFocus(){if(!targetCamera)return;const t=targetCamera;controls.target.lerp(t.target,.08);const desired=t.target.clone().add(new THREE.Vector3(3,Math.max(20,t.target.length()*.28),Math.max(25,t.target.length()*.42)));camera.position.lerp(desired,.035);if(controls.target.distanceTo(t.target)<.15){targetCamera=null;}}
+    function animate(now){animationFrame=requestAnimationFrame(animate);const dt=Math.min((now-lastTime)/1000||0,.05);lastTime=now;if(!state.paused){sun.rotation.y+=dt*.08;for(const [id,m] of planetMeshes){const p=planetById.get(id);if(state.mode==='orbits'){m.userData.angle+=dt*(.1/Math.sqrt(p.distance));const r=orbitRadii.get(id);m.position.x=Math.cos(m.userData.angle)*r;m.position.z=Math.sin(m.userData.angle)*r;}else{m.rotation.y+=dt*.1;}const clouds=cloudLayers.get(id);if(clouds)clouds.rotation.y+=dt*.17;}starField.rotation.y+=dt*.0008;}handleCameraFocus();controls?.update();renderer.render(scene,camera);}
+    initList();bindControls();initScene();selectObject('earth');
+  </script>
+</body>
+</html>
